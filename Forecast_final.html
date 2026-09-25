@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Forecast</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root, [data-theme="light"] {
+    --sky: #eff6fc;
+    --cloud: #ffffff;
+    --line: #d7e4f0;
+    --ink: #1f2937;
+    --dim: #6b7686;
+    --accent: #2f80ed;
+    --accent-soft: rgba(47, 128, 237, 0.12);
+    --error: #d64550;
+  }
+
+  [data-theme="dark"] {
+    --sky: #0f1720;
+    --cloud: #17212c;
+    --line: #283443;
+    --ink: #e7edf4;
+    --dim: #8492a3;
+    --accent: #5b9df5;
+    --accent-soft: rgba(91, 157, 245, 0.18);
+    --error: #ff6b6b;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--sky);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-height: 100vh;
+    background: var(--sky);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .app, .app-header, .app-composer, .app-textarea, .entry, .weather-chip {
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+  }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+    background: var(--cloud);
+  }
+
+  .app-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+  }
+
+  .app-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .app-dot.pending { animation: pulse 1.1s ease-in-out infinite; }
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); }
+    50% { box-shadow: 0 0 0 6px var(--accent-soft); }
+  }
+
+  .app-header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .app-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+
+  .theme-toggle {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .theme-toggle:hover { background: var(--accent-soft); }
+
+  .theme-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .app-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .app-empty {
+    color: var(--dim);
+    font-size: 14px;
+    margin: auto;
+    text-align: center;
+  }
+
+  .entry {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 12px;
+    border-left: 2px solid var(--line);
+    max-width: 640px;
+  }
+
+  .entry.assistant { border-left-color: var(--accent); }
+  .entry.error { border-left-color: var(--error); }
+
+  .entry-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+  }
+
+  .entry.assistant .entry-sender { color: var(--accent); }
+  .entry.error .entry-sender { color: var(--error); }
+
+  .entry-content {
+    font-size: 15px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .entry.error .entry-content { color: var(--error); }
+
+  .entry-cursor { display: inline-block; color: var(--accent); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .entry-cursor { animation: blink 1s step-start infinite; }
+  }
+
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .weather-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    width: fit-content;
+  }
+
+  .weather-chip .chip-icon { font-size: 16px; }
+  .weather-chip .chip-temp { font-weight: 600; }
+  .weather-chip .chip-loc { color: var(--dim); }
+
+  .app-composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--line);
+    background: var(--cloud);
+  }
+
+  .app-textarea {
+    flex: 1;
+    resize: none;
+    background: var(--sky);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 10px 12px;
+    max-height: 160px;
+  }
+
+  .app-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+
+  .app-textarea::placeholder { color: var(--dim); }
+
+  .app-send {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    background: var(--accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+
+  .app-send:hover:not(:disabled) { opacity: 0.88; }
+
+  .app-send:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+
+  .app-send:disabled {
+    background: var(--line);
+    color: var(--dim);
+    cursor: not-allowed;
+  }
+
+  .app-log::-webkit-scrollbar { width: 8px; }
+  .app-log::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="app-header">
+    <div class="app-status">
+      <span class="app-dot" id="statusDot"></span>
+      <span id="statusText">connected</span>
+    </div>
+    <div class="app-header-right">
+      <span class="app-title">Forecast</span>
+      <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode">🌙</button>
+    </div>
+  </header>
+
+  <div class="app-log" id="log" aria-live="polite">
+    <div class="app-empty" id="emptyState">Ask about the weather anywhere.</div>
+  </div>
+
+  <div class="app-composer">
+    <textarea
+      class="app-textarea"
+      id="input"
+      rows="1"
+      placeholder="e.g. Will it rain in Mumbai tomorrow?"
+      aria-label="Message"
+    ></textarea>
+    <button class="app-send" id="sendBtn" aria-label="Send message" disabled>Send</button>
+  </div>
+</div>
+
+<script>
+ 
+
+  // The weather lookups themselves use Open-Meteo, which is free and
+  // keyless — no setup needed for that part.
+
+  // --- Theme ---
+  const root = document.documentElement;
+  const themeToggle = document.getElementById("themeToggle");
+
+  function applyTheme(theme) {
+    root.setAttribute("data-theme", theme);
+    themeToggle.textContent = theme === "dark" ? "☀️" : "🌙";
+    themeToggle.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+  }
+
+  applyTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+  themeToggle.addEventListener("click", () => {
+    applyTheme(root.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+
+  // --- Weather ---
+  const WEATHER_CODES = {
+    0: ["Clear sky", "☀️"], 1: ["Mainly clear", "🌤️"], 2: ["Partly cloudy", "⛅"],
+    3: ["Overcast", "☁️"], 45: ["Fog", "🌫️"], 48: ["Rime fog", "🌫️"],
+    51: ["Light drizzle", "🌦️"], 53: ["Drizzle", "🌦️"], 55: ["Dense drizzle", "🌧️"],
+    61: ["Light rain", "🌦️"], 63: ["Rain", "🌧️"], 65: ["Heavy rain", "🌧️"],
+    71: ["Light snow", "🌨️"], 73: ["Snow", "🌨️"], 75: ["Heavy snow", "❄️"],
+    80: ["Rain showers", "🌦️"], 81: ["Rain showers", "🌧️"], 82: ["Violent showers", "⛈️"],
+    95: ["Thunderstorm", "⛈️"], 96: ["Thunderstorm, hail", "⛈️"], 99: ["Thunderstorm, hail", "⛈️"]
+  };
+  function describeCode(code) {
+    return WEATHER_CODES[code] || ["Unknown conditions", "🌡️"];
+  }
+
+  const WEATHER_TOOL = {
+    name: "get_weather",
+    description: "Get current conditions and a short forecast for a named place.",
+    input_schema: {
+      type: "object",
+      properties: {
+        location: { type: "string", description: "City name, e.g. 'Mumbai' or 'Paris, France'" }
+      },
+      required: ["location"]
+    }
+  };
+
+  const SYSTEM_PROMPT = "You are a weather assistant. When the user asks about current conditions or a forecast for a place, call get_weather with that location. Give clear, practical answers covering temperature and conditions, and mention anything worth planning around, like rain or wind. If the user's message isn't about weather, just chat normally.";
+
+  async function performWeatherLookup(location) {
+    try {
+        const response = await fetch(
+            `http://localhost:8000/weather?city=${encodeURIComponent(location)}`
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            return {
+                error: errorData.detail || "Weather lookup failed."
+            };
+        }
+
+        const data = await response.json();
+
+        return {
+            resolved_location: `${data.city}, ${data.country}`,
+
+            current: {
+                temperature_2m: data.temperature_c,
+                apparent_temperature: data.feels_like_c,
+                relative_humidity_2m: data.humidity_percent,
+                precipitation: 0,
+                weather_code: data.weather_code,
+                wind_speed_10m: data.wind_speed_kmh
+            },
+
+            current_units: {
+                temperature_2m: "°C"
+            }
+        };
+
+    } catch (error) {
+        console.error("Backend connection error:", error);
+
+        return {
+            error: "Cannot connect to the backend. Make sure main.py is running."
+        };
+    }
+}
+  
+
+  const messages = [];
+  const logEl = document.getElementById("log");
+  const emptyState = document.getElementById("emptyState");
+  const inputEl = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+
+  let isLoading = false;
+
+  function setBusy(busy, label) {
+    isLoading = busy;
+    statusDot.classList.toggle("pending", busy);
+    statusText.textContent = label || (busy ? "thinking" : "connected");
+    sendBtn.disabled = busy || !inputEl.value.trim();
+  }
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour12: false });
+  }
+
+  function scrollToBottom() {
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function renderEntry(role, content, ts, snapshot) {
+    if (emptyState) emptyState.remove();
+
+    const entry = document.createElement("div");
+    entry.className = `entry ${role}`;
+
+    const meta = document.createElement("div");
+    meta.className = "entry-meta";
+    const sender = document.createElement("span");
+    sender.className = "entry-sender";
+    sender.textContent = role === "user" ? "YOU" : role === "assistant" ? "FORECAST" : "ERROR";
+    meta.appendChild(sender);
+    if (ts) {
+      const time = document.createElement("span");
+      time.textContent = formatTime(ts);
+      meta.appendChild(time);
+    }
+    entry.appendChild(meta);
+
+    if (snapshot && snapshot.current) {
+      const [desc, icon] = describeCode(snapshot.current.weather_code);
+      const chip = document.createElement("div");
+      chip.className = "weather-chip";
+      chip.innerHTML =
+        `<span class="chip-icon">${icon}</span>` +
+        `<span class="chip-temp">${Math.round(snapshot.current.temperature_2m)}${snapshot.current_units.temperature_2m}</span>` +
+        `<span>${desc}</span>` +
+        `<span class="chip-loc">${snapshot.resolved_location}</span>`;
+      entry.appendChild(chip);
+    }
+
+    const contentEl = document.createElement("div");
+    contentEl.className = "entry-content";
+    contentEl.textContent = content;
+    entry.appendChild(contentEl);
+
+    logEl.appendChild(entry);
+    scrollToBottom();
+    return entry;
+  }
+
+  function renderPendingEntry() {
+    if (emptyState) emptyState.remove();
+    const entry = document.createElement("div");
+    entry.className = "entry assistant";
+    entry.innerHTML =
+      `<div class="entry-meta"><span class="entry-sender">FORECAST</span><span>${formatTime(new Date())}</span></div>` +
+      `<div class="entry-content"><span class="entry-cursor">▌</span></div>`;
+    logEl.appendChild(entry);
+    scrollToBottom();
+    return entry;
+  }
+
+  function autoResize() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + "px";
+  }
+
+ async function getWeatherFromBackend(location) {
+  const response = await fetch(
+    `http://localhost:8000/weather?city=${encodeURIComponent(location)}`
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Weather lookup failed.");
+  }
+
+  return response.json();
+}
+
+ async function getWeatherFromBackend(location) {
+  const response = await fetch(
+    `http://localhost:8000/weather?city=${encodeURIComponent(location)}`
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Weather lookup failed.");
+  }
+
+  return response.json();
+}
+
+
+  async function handleSend() {
+  const text = inputEl.value.trim();
+  if (!text || isLoading) return;
+
+  messages.push({ role: "user", content: text });
+  renderEntry("user", text, new Date());
+
+  inputEl.value = "";
+  autoResize();
+  setBusy(true, "checking weather");
+
+  const pendingEntry = renderPendingEntry();
+
+  try {
+    // Use the user's message as the city name.
+    // Example: "Mumbai" or "weather of Mumbai"
+    let city = text
+      .replace(/what is the weather of/gi, "")
+      .replace(/what's the weather of/gi, "")
+      .replace(/weather of/gi, "")
+      .replace(/weather in/gi, "")
+      .replace(/weather/gi, "")
+      .replace(/\?/g, "")
+      .trim();
+
+    if (!city) {
+      throw new Error("Please enter a city name.");
+    }
+
+    const data = await getWeatherFromBackend(city);
+
+    const [desc] = describeCode(data.weather_code);
+
+    const reply =
+      `Weather in ${data.city}, ${data.country}:\n` +
+      `Temperature: ${data.temperature_c}°C\n` +
+      `Feels like: ${data.feels_like_c}°C\n` +
+      `Humidity: ${data.humidity_percent}%\n` +
+      `Condition: ${desc}\n` +
+      `Wind: ${data.wind_speed_kmh} km/h`;
+
+    pendingEntry.remove();
+
+    renderEntry("assistant", reply, new Date(), {
+      resolved_location: `${data.city}, ${data.country}`,
+      current: {
+        temperature_2m: data.temperature_c,
+        apparent_temperature: data.feels_like_c,
+        relative_humidity_2m: data.humidity_percent,
+        weather_code: data.weather_code,
+        wind_speed_10m: data.wind_speed_kmh
+      },
+      current_units: {
+        temperature_2m: "°C"
+      }
+    });
+
+  } catch (err) {
+    pendingEntry.remove();
+    renderEntry(
+      "error",
+      `${err.message || "Couldn't reach the weather backend"}. Try again.`,
+      null
+    );
+  } finally {
+    setBusy(false);
+  }
+}
+
+  inputEl.addEventListener("input", () => {
+    autoResize();
+    sendBtn.disabled = isLoading || !inputEl.value.trim();
+  });
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+
+  sendBtn.addEventListener("click", handleSend);
+</script>
+
+</body>
+</html>
