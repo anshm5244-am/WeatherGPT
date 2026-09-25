@@ -1,6 +1,6 @@
 # WeatherGPT
 
-WeatherGPT
+WeatherGPT 
 
 «An AI-powered weather assistant that combines real-time weather data with a conversational interface to make weather information easier to understand.»
 
